@@ -1,4 +1,4 @@
-﻿namespace YourClientName
+﻿namespace Bob2
 
 module Scrabble =
 

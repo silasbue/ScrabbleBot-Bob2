@@ -1,4 +1,4 @@
-﻿namespace YourClientName
+﻿namespace Bob2
 
 open ScrabbleUtil
 open ScrabbleUtil.ServerCommunication
@@ -18,11 +18,11 @@ module RegEx =
         else None
 
     let parseMove ts =
-        let pattern = @"([-]?[0-9]+[ ])([-]?[0-9]+[ ])([0-9]+)([A-Z]{1})([0-9]+)[ ]?" 
+        let pattern = @"([-]?[0-9]+[ ])([-]?[0-9]+[ ])([0-9]+)([A-Z]{1})([0-9]+)[ ]?"
         Regex.Matches(ts, pattern) |>
-        Seq.cast<Match> |> 
-        Seq.map 
-            (fun t -> 
+        Seq.cast<Match> |>
+        Seq.map
+            (fun t ->
                 match t.Value with
                 | Regex pattern [x; y; id; c; p] ->
                     ((x |> int, y |> int), (id |> uint32, (c |> char, p |> int)))
@@ -35,7 +35,7 @@ module RegEx =
         hand |>
         MultiSet.fold (fun _ x i -> forcePrint (sprintf "%d -> (%A, %d)\n" x (Map.find x pieces) i)) ()
 
-module State = 
+module State =
     // Make sure to keep your state localised in this module. It makes your life a whole lot easier.
     // Currently, it only keeps track of your hand, your player numer, your board, and your dictionary,
     // but it could, potentially, keep track of other useful
@@ -94,17 +94,17 @@ module Scrabble =
 
         aux st
 
-    let startGame 
-            (boardP : boardProg) 
-            (dictf : bool -> Dictionary.Dict) 
-            (numPlayers : uint32) 
-            (playerNumber : uint32) 
-            (playerTurn  : uint32) 
+    let startGame
+            (boardP : boardProg)
+            (dictf : bool -> Dictionary.Dict)
+            (numPlayers : uint32)
+            (playerNumber : uint32)
+            (playerTurn  : uint32)
             (hand : (uint32 * uint32) list)
             (tiles : Map<uint32, tile>)
-            (timeout : uint32 option) 
+            (timeout : uint32 option)
             (cstream : Stream) =
-        debugPrint 
+        debugPrint
             (sprintf "Starting game!
                       number of players = %d
                       player id = %d
@@ -115,8 +115,7 @@ module Scrabble =
         //let dict = dictf true // Uncomment if using a gaddag for your dictionary
         let dict = dictf false // Uncomment if using a trie for your dictionary
         let board = Parser.mkBoard boardP
-                  
+
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
 
         fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet)
-        
