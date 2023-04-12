@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleTemplate/ScrabbleTemplate/ScrabbleTemplate.fsproj": {}
+    "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleProject/ScrabbleTemplate/ScrabbleTemplate.fsproj": {}
   },
   "projects": {
-    "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleTemplate/ScrabbleBot/ScrabbleBot.fsproj": {
+    "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleProject/ScrabbleBot/ScrabbleBot.fsproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleTemplate/ScrabbleBot/ScrabbleBot.fsproj",
+        "projectUniqueName": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleProject/ScrabbleBot/ScrabbleBot.fsproj",
         "projectName": "ScrabbleBot",
-        "projectPath": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleTemplate/ScrabbleBot/ScrabbleBot.fsproj",
+        "projectPath": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleProject/ScrabbleBot/ScrabbleBot.fsproj",
         "packagesPath": "/Users/silasbue/.nuget/packages/",
-        "outputPath": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleTemplate/ScrabbleBot/obj/",
+        "outputPath": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleProject/ScrabbleBot/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/silasbue/.nuget/NuGet/NuGet.Config"
@@ -67,14 +67,14 @@
         }
       }
     },
-    "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleTemplate/ScrabbleTemplate/ScrabbleTemplate.fsproj": {
+    "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleProject/ScrabbleTemplate/ScrabbleTemplate.fsproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleTemplate/ScrabbleTemplate/ScrabbleTemplate.fsproj",
+        "projectUniqueName": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleProject/ScrabbleTemplate/ScrabbleTemplate.fsproj",
         "projectName": "ScrabbleTemplate",
-        "projectPath": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleTemplate/ScrabbleTemplate/ScrabbleTemplate.fsproj",
+        "projectPath": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleProject/ScrabbleTemplate/ScrabbleTemplate.fsproj",
         "packagesPath": "/Users/silasbue/.nuget/packages/",
-        "outputPath": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleTemplate/ScrabbleTemplate/obj/",
+        "outputPath": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleProject/ScrabbleTemplate/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/silasbue/.nuget/NuGet/NuGet.Config"
@@ -91,8 +91,8 @@
           "net7.0": {
             "targetAlias": "net7.0",
             "projectReferences": {
-              "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleTemplate/ScrabbleBot/ScrabbleBot.fsproj": {
-                "projectPath": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleTemplate/ScrabbleBot/ScrabbleBot.fsproj"
+              "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleProject/ScrabbleBot/ScrabbleBot.fsproj": {
+                "projectPath": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleProject/ScrabbleBot/ScrabbleBot.fsproj"
               }
             }
           }

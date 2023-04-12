@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "WHH3UgZ7eHoutxmLB1sz7qySSPrsDfkHkfRvmU3EWjm9CpcrY1VcXZQFt9vE0o8urVLTG92P6HPQ8CXqzsy/ug==",
+  "dgSpecHash": "BJPB1rhNxgBCQugwD6KcBODed42oHnNvdCaC+dQ7fViB3kCu/YVFPthlXnlYS4Pl+/AnlqFRf6z2KsSHegQxvA==",
   "success": true,
-  "projectFilePath": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleTemplate/ScrabbleTemplate/ScrabbleTemplate.fsproj",
+  "projectFilePath": "/Users/silasbue/ITU/4sem/functional-programming/ScrabbleProject/ScrabbleTemplate/ScrabbleTemplate.fsproj",
   "expectedPackageFiles": [
     "/Users/silasbue/.nuget/packages/fparsec/1.1.1/fparsec.1.1.1.nupkg.sha512",
     "/Users/silasbue/.nuget/packages/fsharp.core/7.0.200/fsharp.core.7.0.200.nupkg.sha512",

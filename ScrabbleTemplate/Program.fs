@@ -10,10 +10,10 @@ let readLines filePath = System.IO.File.ReadLines(filePath)
 
 let spawnMultiples name dict bot =
     let rec aux =
-        function 
+        function
         | 0 -> []
         | x -> (sprintf "%s%d" name x, dict, bot)::aux (x - 1)
-   
+
     aux >> List.rev
 
 [<EntryPoint>]
@@ -35,7 +35,7 @@ let main argv =
 //    let board      = ScrabbleUtil.HoleBoard.holeBoard ()
 //    let board      = ScrabbleUtil.InfiniteHoleBoard.infiniteHoleBoard ()
 
-    let words     = readLines "../../../Dictionaries/English.txt"
+    let words     = readLines "./Dictionaries/English.txt"
 
     let handSize   = 7u
     let timeout    = None
@@ -45,9 +45,9 @@ let main argv =
 
     let dictAPI =
         // Uncomment if you have implemented a dictionary. last element None if you have not implemented a GADDAG
-        // Some (Dictionary.empty, Dictionary.insert, Dictionary.step, Some Dictionary.reverse) 
+        // Some (Dictionary.empty, Dictionary.insert, Dictionary.step, Some Dictionary.reverse)
         None
-        
+
     // Uncomment this line to call your client
     // let players    = [("Your name here", YourClientName.Scrabble.startGame)]
     let (dictionary, time) =
@@ -56,9 +56,9 @@ let main argv =
     let players = spawnMultiples "OxyphenButazone" dictionary Oxyphenbutazone.Scrabble.startGame 2
 
 
-    do ScrabbleServer.Comm.startGame 
+    do ScrabbleServer.Comm.startGame
           board dictionary handSize timeout tiles seed port players
-    
+
     ScrabbleUtil.DebugPrint.forcePrint ("Server has terminated. Press Enter to exit program.\n")
     System.Console.ReadLine () |> ignore
 
