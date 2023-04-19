@@ -65,6 +65,10 @@ module Scrabble =
 
             // remove the force print when you move on from manual input (or when you have learnt the format)
             forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
+
+            debugPrint $"current state: {st}\n\n"
+            debugPrint $"squares: {st.board.squares}\n\n"
+            
             let input =  System.Console.ReadLine()
             let move = RegEx.parseMove input
 
@@ -77,6 +81,7 @@ module Scrabble =
             match msg with
             | RCM (CMPlaySuccess(ms, points, newPieces)) ->
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
+                debugPrint $"\n\nMOVES: {ms}\nPOINTS: {points}\nNEWPIECES: {newPieces}\n\n"
                 let st' = st // This state needs to be updated
                 aux st'
             | RCM (CMPlayed (pid, ms, points)) ->
