@@ -1,12 +1,12 @@
 ﻿namespace Bob2
 
+open ScrabbleLib
 open ScrabbleUtil
 open ScrabbleUtil.ServerCommunication
 
 open System.IO
 
 open ScrabbleUtil.DebugPrint
-
 // The RegEx module is only used to parse human input. It is not used for the final product.
 
 module RegEx =
@@ -46,14 +46,16 @@ module State =
         dict          : ScrabbleUtil.Dictionary.Dict
         playerNumber  : uint32
         hand          : MultiSet.MultiSet<uint32>
+        parsedBoard    : coord -> bool
     }
 
-    let mkState b d pn h = {board = b; dict = d;  playerNumber = pn; hand = h }
+    let mkState b d pn h pb = {board = b; dict = d;  playerNumber = pn; hand = h; parsedBoard = pb }
 
     let board st         = st.board
     let dict st          = st.dict
     let playerNumber st  = st.playerNumber
     let hand st          = st.hand
+    let parsedBoard st   = st.parsedBoard
 
 module Scrabble =
     open System.Threading
@@ -81,8 +83,8 @@ module Scrabble =
             match msg with
             | RCM (CMPlaySuccess(ms, points, newPieces)) ->
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
-                debugPrint $"\n\nMOVES: {ms}\nPOINTS: {points}\nNEWPIECES: {newPieces}\n\n"
-                let st' = st // This state needs to be updated
+                debugPrint $"\n\nMOVES: {ms}\nPOINTS: {points}\nNEWPIECES: {newPieces}\n\n PARSEDBOARD: {st.parsedBoard (0, 0)}\n\n"
+                let st' = State.mkState st.board st.dict 2u (MultiSet.removeSingle 1u st.hand) st.parsedBoard// This state needs to be updated
                 aux st'
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
@@ -120,7 +122,10 @@ module Scrabble =
         //let dict = dictf true // Uncomment if using a gaddag for your dictionary
         let dict = dictf false // Uncomment if using a trie for your dictionary
         let board = Parser.mkBoard boardP
+        let parsedBoard = simpleBoardLangParser.parseSimpleBoardProg boardP
 
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
 
-        fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet)
+        fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet parsedBoard)
+        
+        
