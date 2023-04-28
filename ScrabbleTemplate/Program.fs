@@ -54,8 +54,6 @@ let main argv =
     // Uncomment this line to call your client
     let players    = [("ScrabBoble2", dictionary, Bob2.Scrabble.startGame)]
     
-    words |> Seq.iter(fun x -> printfn  "%s" x) 
-    
     // let players = spawnMultiples "OxyphenButazone" dictionary Oxyphenbutazone.Scrabble.startGame 2
 
 

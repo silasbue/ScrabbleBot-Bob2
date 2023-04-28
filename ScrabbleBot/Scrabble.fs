@@ -2,6 +2,7 @@
 
 open ScrabbleLib
 open ScrabbleUtil
+open ScrabbleUtil.Dictionary
 open ScrabbleUtil.ServerCommunication
 
 open System.IO
@@ -36,6 +37,7 @@ module RegEx =
         MultiSet.fold (fun _ x i -> forcePrint (sprintf "%d -> (%A, %d)\n" x (Map.find x pieces) i)) ()
 
 module State =
+    
     // Make sure to keep your state localised in this module. It makes your life a whole lot easier.
     // Currently, it only keeps track of your hand, your player numer, your board, and your dictionary,
     // but it could, potentially, keep track of other useful
@@ -46,19 +48,24 @@ module State =
         dict          : ScrabbleUtil.Dictionary.Dict
         playerNumber  : uint32
         hand          : MultiSet.MultiSet<uint32>
-        parsedBoard    : coord -> bool
+        // parsedBoard   : coord -> bool
+        boardTiles    : Map<coord, char>
     }
 
-    let mkState b d pn h pb = {board = b; dict = d;  playerNumber = pn; hand = h; parsedBoard = pb }
+    let mkState b d pn h bt = {board = b; dict = d;  playerNumber = pn; hand = h; boardTiles = bt }
 
     let board st         = st.board
     let dict st          = st.dict
     let playerNumber st  = st.playerNumber
     let hand st          = st.hand
-    let parsedBoard st   = st.parsedBoard
+    let boardTiles st   = st.boardTiles
 
 module Scrabble =
     open System.Threading
+    let (|??|) a b =
+        match a with
+        | Some a -> a
+        | None -> b
 
     let playGame cstream pieces (st : State.state) =
 
@@ -72,7 +79,9 @@ module Scrabble =
             debugPrint $"squares: {st.board.squares}\n\n"
             
             let input =  System.Console.ReadLine()
+            
             let move = RegEx.parseMove input
+            debugPrint $"MOVE: {move}"
 
             debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
             send cstream (SMPlay move)
@@ -83,8 +92,16 @@ module Scrabble =
             match msg with
             | RCM (CMPlaySuccess(ms, points, newPieces)) ->
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
-                debugPrint $"\n\nMOVES: {ms}\nPOINTS: {points}\nNEWPIECES: {newPieces}\n\n PARSEDBOARD: {st.parsedBoard (0, 0)}\n\n"
-                let st' = State.mkState st.board st.dict 2u (MultiSet.removeSingle 1u st.hand) st.parsedBoard// This state needs to be updated
+                debugPrint $"\n\nMOVES: {ms}\nPOINTS: {points}\nNEWPIECES: {newPieces}\n\n BOARDTILES: {st.boardTiles}\n\n"
+                // hand after removing used pieces
+                let removedHand = ms |> List.fold (fun acc x -> MultiSet.removeSingle (fst (snd x)) acc) st.hand
+                // new hand after adding new pieces
+                let newHand = newPieces |> List.fold (fun acc x -> MultiSet.addSingle (fst x) acc) removedHand
+                // board after adding word
+                let newBoardTiles = ms |> List.fold (fun acc x -> Map.add (fst x) (fst (snd (snd x))) acc) st.boardTiles
+                
+                let st' = State.mkState st.board st.dict st.playerNumber newHand newBoardTiles// This state needs to be updated
+                
                 aux st'
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
@@ -122,10 +139,10 @@ module Scrabble =
         //let dict = dictf true // Uncomment if using a gaddag for your dictionary
         let dict = dictf false // Uncomment if using a trie for your dictionary
         let board = Parser.mkBoard boardP
-        let parsedBoard = simpleBoardLangParser.parseSimpleBoardProg boardP
+        let boardTiles = Map.empty
 
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
 
-        fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet parsedBoard)
+        fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet boardTiles)
         
         
