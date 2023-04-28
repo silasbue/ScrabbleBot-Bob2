@@ -37,7 +37,7 @@ module RegEx =
         MultiSet.fold (fun _ x i -> forcePrint (sprintf "%d -> (%A, %d)\n" x (Map.find x pieces) i)) ()
 
 module State =
-    
+
     // Make sure to keep your state localised in this module. It makes your life a whole lot easier.
     // Currently, it only keeps track of your hand, your player numer, your board, and your dictionary,
     // but it could, potentially, keep track of other useful
@@ -69,17 +69,23 @@ module Scrabble =
 
     let playGame cstream pieces (st : State.state) =
 
+        let (|??|) a b =
+            match a with
+            | Some a -> a
+            | None -> b
+
         let rec aux (st : State.state) =
             Print.printHand pieces (State.hand st)
-
+            let word = Dictionary.step 'A' st.dict
+            let word2 = Dictionary.step 'A' (snd (word |??| (false, st.dict)))
             // remove the force print when you move on from manual input (or when you have learnt the format)
             forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
-
+            debugPrint $"{word2}\n\n"
             debugPrint $"current state: {st}\n\n"
             debugPrint $"squares: {st.board.squares}\n\n"
-            
+
             let input =  System.Console.ReadLine()
-            
+
             let move = RegEx.parseMove input
             debugPrint $"MOVE: {move}"
 
@@ -99,9 +105,9 @@ module Scrabble =
                 let newHand = newPieces |> List.fold (fun acc x -> MultiSet.addSingle (fst x) acc) removedHand
                 // board after adding word
                 let newBoardTiles = ms |> List.fold (fun acc x -> Map.add (fst x) (fst (snd (snd x))) acc) st.boardTiles
-                
+
                 let st' = State.mkState st.board st.dict st.playerNumber newHand newBoardTiles// This state needs to be updated
-                
+
                 aux st'
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
@@ -142,7 +148,7 @@ module Scrabble =
         let boardTiles = Map.empty
 
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
+        let boardTiles = Map.empty
 
         fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet boardTiles)
-        
-        
+
