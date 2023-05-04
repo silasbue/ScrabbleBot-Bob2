@@ -58,17 +58,14 @@ module State =
     let dict st          = st.dict
     let playerNumber st  = st.playerNumber
     let hand st          = st.hand
-    let boardTiles st   = st.boardTiles
+    let boardTiles st    = st.boardTiles
 
 module Scrabble =
     open System.Threading
-    let (|??|) a b =
-        match a with
-        | Some a -> a
-        | None -> b
+    let decideMove (st : State.state) pieces = "not implemented"
+
 
     let playGame cstream pieces (st : State.state) =
-
         let (|??|) a b =
             match a with
             | Some a -> a
@@ -76,17 +73,17 @@ module Scrabble =
 
         let rec aux (st : State.state) =
             Print.printHand pieces (State.hand st)
-            let word = Dictionary.step 'A' st.dict
-            let word2 = Dictionary.step 'A' (snd (word |??| (false, st.dict)))
+
             // remove the force print when you move on from manual input (or when you have learnt the format)
             forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
-            debugPrint $"{word2}\n\n"
             debugPrint $"current state: {st}\n\n"
             debugPrint $"squares: {st.board.squares}\n\n"
 
+            let move = decideMove st pieces
+            debugPrint $"MOOOOVEEEE: {move}"
             let input =  System.Console.ReadLine()
-
             let move = RegEx.parseMove input
+
             debugPrint $"MOVE: {move}"
 
             debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
@@ -145,7 +142,6 @@ module Scrabble =
         //let dict = dictf true // Uncomment if using a gaddag for your dictionary
         let dict = dictf false // Uncomment if using a trie for your dictionary
         let board = Parser.mkBoard boardP
-        let boardTiles = Map.empty
 
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
         let boardTiles = Map.empty
