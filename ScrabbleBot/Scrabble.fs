@@ -62,6 +62,8 @@ module State =
     let boardTiles st    = st.boardTiles
 
 module Scrabble =
+    open System.Threading
+    
     let uintToChar (u: uint32) =
         match u with
         | u -> char (u + 64u)
@@ -86,15 +88,21 @@ module Scrabble =
     let charToInt (c: char) =
         match c with
         | c -> int c - 64
-    
-    open System.Threading
-    let rec playAbleWord (letters: char list) (d: Dict) (word: string) =
-        match letters with
-        | x::xs -> match step x d with
-                   | Some (b, d) when b = true -> (word + x.ToString())
-                   | Some (b, d) -> playAbleWord xs d (word + x.ToString())
-                   | None -> playAbleWord (xs @ [x]) d word
-                   
+     
+    let playableWord (letters: char list) (d: Dict) =
+        let rec aux (letters: char list) (d: Dict) (word: string) =
+            match letters with 
+            | x::xs -> match step x d with
+                       | Some (b, d) when b = true -> (word + x.ToString())
+                       | Some (b, d) -> aux xs d (word + x.ToString())
+                       | None -> aux (xs @ [x]) d word
+            | [] -> failwith "todo"
+        aux letters d ""
+        
+    let playableWordWithPrefix (prefixChar: char) (letters: char list) (d: Dict) =
+        match step prefixChar d with
+        | Some (_, d) -> playableWord letters d
+        | None -> failwith "None"
                    
     let rec wordToFirstMove (word: string) (coord: int * int) output =
          match word with
@@ -106,14 +114,15 @@ module Scrabble =
         | s when s <> "" && isVertical -> wordToMove s[1..] (fst coord, (snd coord + 1)) true  $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
         | s when s <> "" -> wordToMove s[1..] (fst coord + 1, (snd coord)) false  $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
         | "" -> RegEx.parseMove output
+        
+    // let rec getGoodBoardTiles (st: State.state) =
+    //     st.boardTiles |> Map.fold (fun acc k v -> match Map.tryFind (fst k, snd k + 1)) List.empty
+    //     
+        
 
-
+    
+    
     let playGame cstream pieces (st : State.state) =
-        let (|??|) a b =
-            match a with
-            | Some a -> a
-            | None -> b
-
         let rec aux (st : State.state) =
             Print.printHand pieces (State.hand st)
 
@@ -121,19 +130,26 @@ module Scrabble =
             forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
             debugPrint $"current state: {st}\n\n"
             debugPrint $"squares: {st.board.squares}\n\n"
-            debugPrint $"hand: {MultiSet.toList st.hand}\n\n"
+            debugPrint $"hand multiset: {st.hand}\n\n"
             
             let chList = MultiSet.toList st.hand |> List.fold (fun acc x -> acc @ [uintToChar x]) []
             
             debugPrint $"chList: {chList}\n\n"
 
-            let move = playAbleWord chList st.dict ""
-            debugPrint $"Move: {move}\n\n"
-            let firstMove = wordToMove move (0,0) false ""
-            debugPrint $"First move: {firstMove}\n\n"
+            // TODO IMPLEMENT MOVE
+            // let move =
+            //     match Map.isEmpty st.boardTiles with
+            //     | true -> playableWord chList st.dict ""
+            //     | false -> 
+            
+            
+            // let move = playableWord chList st.dict ""
+            // debugPrint $"Move: {move}\n\n"
+            // let firstMove = wordToMove move (0,0) false ""
+            // debugPrint $"First move: {firstMove}\n\n"
             let input =  System.Console.ReadLine()
-            // let move = RegEx.parseMove input
-            let move = firstMove
+            let move = RegEx.parseMove input
+            // let move = firstMove
 
             debugPrint $"MOVE: {move}"
 
