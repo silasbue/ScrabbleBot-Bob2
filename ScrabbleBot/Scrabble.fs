@@ -114,14 +114,25 @@ module Scrabble =
         | s when s <> "" && isVertical -> wordToMove s[1..] (fst coord, (snd coord + 1)) true  $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
         | s when s <> "" -> wordToMove s[1..] (fst coord + 1, (snd coord)) false  $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
         | "" -> RegEx.parseMove output
-        
-    // let rec getGoodBoardTiles (st: State.state) =
-    //     st.boardTiles |> Map.fold (fun acc k v -> match Map.tryFind (fst k, snd k + 1)) List.empty
-    //     
-        
+
+    let checkRight (st: State.state) =
+        st.boardTiles |> Map.filter (fun x _ -> 
+            not ((st.boardTiles.ContainsKey (fst x + 1, (snd x)) ||
+            st.boardTiles.ContainsKey (fst x + 1, (snd x + 1)) ||
+            st.boardTiles.ContainsKey (fst x + 1, (snd x - 1))) || 
+            st.boardTiles.ContainsKey (fst x - 1, (snd x))))
+
+    let checkDown (st: State.state) = 
+        st.boardTiles |> Map.filter (fun x _ ->
+        not(st.boardTiles.ContainsKey (fst x, (snd x + 1)) ||
+            st.boardTiles.ContainsKey (fst x - 1, (snd x + 1)) ||
+            st.boardTiles.ContainsKey (fst x + 1, (snd x + 1)) ||
+            st.boardTiles.ContainsKey (fst x, (snd x - 1))))
 
     
-    
+            
+            
+
     let playGame cstream pieces (st : State.state) =
         let rec aux (st : State.state) =
             Print.printHand pieces (State.hand st)
@@ -135,6 +146,9 @@ module Scrabble =
             let chList = MultiSet.toList st.hand |> List.fold (fun acc x -> acc @ [uintToChar x]) []
             
             debugPrint $"chList: {chList}\n\n"
+            let check2 = checkRight st
+            let check3 = checkDown st
+            debugPrint $"check: {check2}\n\n {check3}\n\n"
 
             // TODO IMPLEMENT MOVE
             // let move =
@@ -143,13 +157,14 @@ module Scrabble =
             //     | false -> 
             
             
-            // let move = playableWord chList st.dict ""
+            let move = playableWord chList st.dict
             // debugPrint $"Move: {move}\n\n"
-            // let firstMove = wordToMove move (0,0) false ""
+            let firstMove = wordToMove move (0,0) false ""
             // debugPrint $"First move: {firstMove}\n\n"
+            
             let input =  System.Console.ReadLine()
-            let move = RegEx.parseMove input
-            // let move = firstMove
+            // let move = RegEx.parseMove input
+            let move = firstMove
 
             debugPrint $"MOVE: {move}"
 
