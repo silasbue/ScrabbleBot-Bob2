@@ -65,6 +65,18 @@ module Scrabble =
     let uintToChar (u: uint32) =
         match u with
         | u -> char (u + 64u)
+
+    let charNumberToPoints (ch: int) = 
+        match ch with
+        | 0                                             -> 0
+        | 1 | 5 | 9 | 12 | 14 | 15 | 18 | 19 | 20 | 21  -> 1
+        | 4 | 7                                         -> 2
+        | 2 | 3 | 13 | 16                               -> 3
+        | 6 | 8 | 22 | 23 | 25                          -> 4
+        | 11                                            -> 5
+        | 10 | 24                                       -> 8
+        | 17 | 26                                       -> 10
+        | _                                             -> failwith "Not valid character index"
         
     
     let charToUint (c: char) =
@@ -86,9 +98,14 @@ module Scrabble =
                    
     let rec wordToFirstMove (word: string) (coord: int * int) output =
          match word with
-         | s when s <> "" -> wordToFirstMove s[1..] (fst coord, (snd coord + 1)) $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{2}"
+         | s when s <> "" -> wordToFirstMove s[1..] (fst coord, (snd coord + 1)) $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
          | "" -> RegEx.parseMove output
-                   
+
+    let rec wordToMove (word: string) (coord : int * int) (isVertical: bool) output =
+        match word with
+        | s when s <> "" && isVertical -> wordToMove s[1..] (fst coord, (snd coord + 1)) true  $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
+        | s when s <> "" -> wordToMove s[1..] (fst coord + 1, (snd coord)) false  $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
+        | "" -> RegEx.parseMove output
 
 
     let playGame cstream pieces (st : State.state) =
@@ -112,7 +129,7 @@ module Scrabble =
 
             let move = playAbleWord chList st.dict ""
             debugPrint $"Move: {move}\n\n"
-            let firstMove = wordToFirstMove move (0,0) ""
+            let firstMove = wordToMove move (0,0) false ""
             debugPrint $"First move: {firstMove}\n\n"
             let input =  System.Console.ReadLine()
             // let move = RegEx.parseMove input
