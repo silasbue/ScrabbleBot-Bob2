@@ -1,5 +1,6 @@
 ﻿namespace Bob2
 
+open System.Text.RegularExpressions
 open ScrabbleLib
 open ScrabbleUtil
 open ScrabbleUtil.Dictionary
@@ -61,8 +62,33 @@ module State =
     let boardTiles st    = st.boardTiles
 
 module Scrabble =
+    let uintToChar (u: uint32) =
+        match u with
+        | u -> char (u + 64u)
+        
+    
+    let charToUint (c: char) =
+        match c with
+        | c -> uint32 c - 64u
+        
+    let charToInt (c: char) =
+        match c with
+        | c -> int c - 64
+    
     open System.Threading
-    let decideMove (st : State.state) pieces = "not implemented"
+    let rec playAbleWord (letters: char list) (d: Dict) (word: string) =
+        match letters with
+        | x::xs -> match step x d with
+                   | Some (b, d) when b = true -> (word + x.ToString())
+                   | Some (b, d) -> playAbleWord xs d (word + x.ToString())
+                   | None -> playAbleWord (xs @ [x]) d word
+                   
+                   
+    let rec wordToFirstMove (word: string) (coord: int * int) output =
+         match word with
+         | s when s <> "" -> wordToFirstMove s[1..] (fst coord, (snd coord + 1)) $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{2}"
+         | "" -> RegEx.parseMove output
+                   
 
 
     let playGame cstream pieces (st : State.state) =
@@ -78,11 +104,19 @@ module Scrabble =
             forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
             debugPrint $"current state: {st}\n\n"
             debugPrint $"squares: {st.board.squares}\n\n"
+            debugPrint $"hand: {MultiSet.toList st.hand}\n\n"
+            
+            let chList = MultiSet.toList st.hand |> List.fold (fun acc x -> acc @ [uintToChar x]) []
+            
+            debugPrint $"chList: {chList}\n\n"
 
-            let move = decideMove st pieces
-            debugPrint $"MOOOOVEEEE: {move}"
+            let move = playAbleWord chList st.dict ""
+            debugPrint $"Move: {move}\n\n"
+            let firstMove = wordToFirstMove move (0,0) ""
+            debugPrint $"First move: {firstMove}\n\n"
             let input =  System.Console.ReadLine()
-            let move = RegEx.parseMove input
+            // let move = RegEx.parseMove input
+            let move = firstMove
 
             debugPrint $"MOVE: {move}"
 
