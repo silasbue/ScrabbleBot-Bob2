@@ -91,7 +91,17 @@ module Scrabble =
     let charToInt (c: char) =
         match c with
         | c -> int c - 64
+  
         
+    // let temp (letters: char list) (d: Dict) (word: string): string list =
+    //     let rec aux (letters: char list) (d: Dict) (word: string) (playableWords: string list) (tempOut: char list) = 
+    //         letters |> List.fold (fun acc x -> acc @ match step x d with
+    //                                                  | Some (b, d) when b = true -> (List.except [x] letters) @ tempOut |> List.fold (fun acc x -> aux (List.except [x] letters) d (word + x.ToString()) (playableWords @ [word + x.ToString()]) []) []
+    //                                                  | Some (b, d) -> (List.except [x] letters) @ tempOut |> List.fold (fun acc x -> aux (List.except [x] letters) d (word + x.ToString()) playableWords []) []
+    //                                                  | None -> (List.except [x] letters) |> List.fold (fun acc x -> aux (List.except [x] letters) d word playableWords (tempOut @ [x])) []
+    //                                                  ) []
+    //     aux letters d word [] []
+
     let playableWords (letters: char list) (d: Dict) (word: string) =
         let rec aux (letters: char list) (d: Dict) (word: string) (playableWords: string list) (tempOut: char list) =
             match letters with
@@ -99,7 +109,7 @@ module Scrabble =
                        | Some (b, d) when b = true -> aux (xs @ tempOut) d (word + x.ToString())  (playableWords |> List.append [word + x.ToString()]) []
                        | Some (_, d) -> aux (xs @ tempOut) d (word + x.ToString()) playableWords []
                        | None -> aux xs d word playableWords (tempOut @ [x])
-            | [] -> playableWords            
+            | [] -> playableWords
             
         letters |> List.fold (fun acc x -> acc @ (aux ([x] @ (List.except [x] letters)) d word [] [])) []
 
@@ -157,17 +167,32 @@ module Scrabble =
             st.boardTiles.ContainsKey (fst x + 1, (snd x + 2)) ||
             st.boardTiles.ContainsKey (fst x - 1, (snd x + 2))))
 
+    let rec checkDownWithPrefix (st: State.state) = 
+        st.boardTiles |> Map.filter (fun x _ ->
+        (st.boardTiles.ContainsKey (fst x, (snd x + 1)) ||
+            st.boardTiles.ContainsKey (fst x - 1, (snd x + 1)) ||
+            st.boardTiles.ContainsKey (fst x + 1, (snd x + 1))))
+        
     
     let findDownMoves (st: State.state) (letters: char list) =
         (checkDown st)
         |> Map.fold (fun acc k v -> acc @ [((fst k, snd k + 1) ,playableWordsWithPrefix v letters st.dict)]) []
         |> List.fold (fun acc (c, x) -> acc @ [(c ,x |> List.fold (fun acc x -> acc @ [x[1..]]) [])]) []
         |> List.filter (fun (_, x) -> not (List.isEmpty x))
+        
     let findRightMoves (st: State.state) (letters: char list) =
         (checkRight st)
         |> Map.fold (fun acc k v -> acc @ [((fst k + 1, snd k) ,playableWordsWithPrefix v letters st.dict)]) []
         |> List.fold (fun acc (c, x) -> acc @ [(c ,x |> List.fold (fun acc x -> acc @ [x[1..]]) [])]) []
         |> List.filter (fun (_, x) -> not (List.isEmpty x))
+
+    let findDownMovesWithPrefix (st: State.state) (letters: char list) =
+        if Map.isEmpty (checkDown st) then ((checkDownWithPrefix st) |> Map.fold (fun acc k v -> acc @ [((fst k, snd k + 1) ,playableWordsWithPrefix v letters st.dict)]) []
+            |> List.fold (fun acc (c, x) -> acc @ [(c ,x |> List.fold (fun acc x -> acc @ [x[1..]]) [])]) []
+            |> List.filter (fun (_, x) -> not (List.isEmpty x))
+            |> List.filter (fun (x, _) -> st.boardTiles.ContainsKey x))
+            //|> List.filter (fun (_, x) -> List.contains (charToUint x[0]) (MultiSet.toList st.hand))
+        else findDownMoves st letters
 
     let playGame cstream pieces (st : State.state) =
         let rec aux (st : State.state) =
@@ -197,7 +222,7 @@ module Scrabble =
             let firstMoves = playableWords chList st.dict ""
             debugPrint $"Moves: {firstMoves}\n\n"
             
-            debugPrint $"findDownMoves: {findDownMoves st chList} \n\n"
+            debugPrint $"findDownMoves: {findDownMovesWithPrefix st chList} \n\n"
             debugPrint $"findRightMoves: {findRightMoves st chList} \n\n"
             
             // let move = RegEx.parseMove input
