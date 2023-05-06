@@ -51,6 +51,7 @@ module State =
         hand          : MultiSet.MultiSet<uint32>
         // parsedBoard   : coord -> bool
         boardTiles    : Map<coord, char>
+        // isFirstMove     : bool
     }
 
     let mkState b d pn h bt = {board = b; dict = d;  playerNumber = pn; hand = h; boardTiles = bt }
@@ -89,7 +90,7 @@ module Scrabble =
         match c with
         | c -> int c - 64
         
-    let playableWords (letters: char list) (d: Dict) =
+    let playableWords (letters: char list) (d: Dict) (word: string) =
         let rec aux (letters: char list) (d: Dict) (word: string) (playableWords: string list) (tempOut: char list) =
             match letters with
             | x::xs -> match step x d with
@@ -97,7 +98,12 @@ module Scrabble =
                        | Some (_, d) -> aux (xs @ tempOut) d (word + x.ToString()) playableWords []
                        | None -> aux xs d word playableWords (tempOut @ [x])
             | [] -> playableWords
-        aux letters d "" [] []
+        aux letters d word [] []
+
+    let playableWordsWithPrefix (prefixChar: char) (letters: char list) (d: Dict) =
+        match step prefixChar d with
+        | Some (_, d) -> playableWords letters d (prefixChar.ToString())
+        | None -> failwith "None"
      
     let playableWord (letters: char list) (d: Dict) =
         let rec aux (letters: char list) (d: Dict) (word: string) =
@@ -113,6 +119,7 @@ module Scrabble =
         match step prefixChar d with
         | Some (_, d) -> playableWord letters d
         | None -> failwith "None"
+
                    
     let rec wordToFirstMove (word: string) (coord: int * int) output =
          match word with
@@ -140,8 +147,16 @@ module Scrabble =
             st.boardTiles.ContainsKey (fst x, (snd x - 1))))
 
     
-            
-            
+    let findDownMoves (st: State.state) (letters: char list) =
+        (checkDown st)
+        |> Map.fold (fun acc k v -> acc @ [((fst k, snd k + 1) ,playableWordsWithPrefix v letters st.dict)]) []
+        |> List.fold (fun acc (c, x) -> acc @ [(c ,x |> List.fold (fun acc x -> acc @ [x[1..]]) [])]) []
+        |> List.filter (fun (_, x) -> not (List.isEmpty x))
+    let findRightMoves (st: State.state) (letters: char list) =
+        (checkRight st)
+        |> Map.fold (fun acc k v -> acc @ [((fst k, snd k + 1) ,playableWordsWithPrefix v letters st.dict)]) []
+        |> List.fold (fun acc (c, x) -> acc @ [(c ,x |> List.fold (fun acc x -> acc @ [x[1..]]) [])]) []
+        |> List.filter (fun (_, x) -> not (List.isEmpty x))
 
     let playGame cstream pieces (st : State.state) =
         let rec aux (st : State.state) =
@@ -167,16 +182,24 @@ module Scrabble =
             //     | false -> 
             
             
-            let moves = playableWords chList st.dict
-            debugPrint $"Moves: {moves}\n\n"
+            let firstMoves = playableWords chList st.dict ""
+            debugPrint $"Moves: {firstMoves}\n\n"
             
-            
+            debugPrint $"findDownMoves: {findDownMoves st chList} \n\n"
+            debugPrint $"findRightMoves: {findRightMoves st chList} \n\n"
             
             // let move = RegEx.parseMove input
             // let firstMove = wordToMove moves[0] (0,0) false ""
             // debugPrint $"First move: {firstMove}\n\n"
+            // let move = 
+            //     match findDownMoves st chList with
+            //     | (x, y)::xs -> wordToMove y[0] x true ""
+            //     | [] -> match findRightMoves st chList with
+            //             | (x, y)::xs -> wordToMove y[0] x false ""
+            //             | [] -> [((0, 0), (0u, (' ', 0)))]
+
             let move =
-                match moves with
+                match firstMoves with
                 | x::_ -> wordToMove x (0,0) false ""
                 | [] -> [((0, 0), (0u, (' ', 0)))]
 
@@ -184,7 +207,7 @@ module Scrabble =
             let input =  System.Console.ReadLine()
 
             debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-            if List.isEmpty moves then send cstream SMPass else send cstream (SMPlay move)
+            if List.isEmpty firstMoves then send cstream SMPass else send cstream (SMPlay move)
 
             let msg = recv cstream
             debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
@@ -199,6 +222,8 @@ module Scrabble =
                 let newHand = newPieces |> List.fold (fun acc x -> MultiSet.addSingle (fst x) acc) removedHand
                 // board after adding word
                 let newBoardTiles = ms |> List.fold (fun acc x -> Map.add (fst x) (fst (snd (snd x))) acc) st.boardTiles
+
+                // let isFirstMove = st.isFirstMove 
 
                 let st' = State.mkState st.board st.dict st.playerNumber newHand newBoardTiles// This state needs to be updated
 
