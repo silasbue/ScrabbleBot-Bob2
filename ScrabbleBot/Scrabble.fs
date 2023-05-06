@@ -99,8 +99,11 @@ module Scrabble =
                        | Some (b, d) when b = true -> aux (xs @ tempOut) d (word + x.ToString())  (playableWords |> List.append [word + x.ToString()]) []
                        | Some (_, d) -> aux (xs @ tempOut) d (word + x.ToString()) playableWords []
                        | None -> aux xs d word playableWords (tempOut @ [x])
-            | [] -> playableWords
-        aux letters d word [] []
+            | [] -> playableWords            
+            
+        letters |> List.fold (fun acc x -> acc @ (aux ([x] @ (List.except [x] letters)) d word [] [])) []
+
+    
 
     let playableWordsWithPrefix (prefixChar: char) (letters: char list) (d: Dict) =
         match step prefixChar d with
@@ -139,14 +142,20 @@ module Scrabble =
             not ((st.boardTiles.ContainsKey (fst x + 1, (snd x)) ||
             st.boardTiles.ContainsKey (fst x + 1, (snd x + 1)) ||
             st.boardTiles.ContainsKey (fst x + 1, (snd x - 1))) || 
-            st.boardTiles.ContainsKey (fst x - 1, (snd x))))
+            st.boardTiles.ContainsKey (fst x - 1, (snd x)) ||
+            st.boardTiles.ContainsKey (fst x + 2, (snd x)) ||
+            st.boardTiles.ContainsKey (fst x + 2, (snd x + 1)) ||
+            st.boardTiles.ContainsKey (fst x + 2, (snd x - 1))))
 
     let checkDown (st: State.state) = 
         st.boardTiles |> Map.filter (fun x _ ->
         not(st.boardTiles.ContainsKey (fst x, (snd x + 1)) ||
             st.boardTiles.ContainsKey (fst x - 1, (snd x + 1)) ||
             st.boardTiles.ContainsKey (fst x + 1, (snd x + 1)) ||
-            st.boardTiles.ContainsKey (fst x, (snd x - 1))))
+            st.boardTiles.ContainsKey (fst x, (snd x - 1)) ||
+            st.boardTiles.ContainsKey (fst x, (snd x + 2)) ||
+            st.boardTiles.ContainsKey (fst x + 1, (snd x + 2)) ||
+            st.boardTiles.ContainsKey (fst x - 1, (snd x + 2))))
 
     
     let findDownMoves (st: State.state) (letters: char list) =
@@ -194,18 +203,33 @@ module Scrabble =
             // let move = RegEx.parseMove input
             // let firstMove = wordToMove moves[0] (0,0) false ""
             // debugPrint $"First move: {firstMove}\n\n"
+            let findLongestWord (lst: string list) =
+                let rec aux (lst: string list) (longest: string) =
+                    match lst with
+                    | x::xs when x.Length > longest.Length -> aux xs x
+                    | x::xs -> aux xs longest
+                    | [] -> longest
+                aux lst ""
+
+            let findLongestWord2 (lst) =
+                let rec aux (lst) (longest: ((int * int) * string) ) =
+                    match lst with
+                    | (x, y)::xs when String.length (findLongestWord y) > String.length (snd longest) -> aux xs (x, findLongestWord y)
+                    | (x, y)::xs -> aux xs longest
+                    | [] -> longest
+                aux lst ((0,0), "")
+            
             let otherMove = 
                 match findDownMoves st chList with
-                | (x, y)::xs -> wordToMove y[0] x true ""
+                | (x, y)::xs -> wordToMove (snd (findLongestWord2 ([(x, y)] @ xs))) (fst (findLongestWord2 ([(x, y)] @ xs))) true ""
                 | [] -> match findRightMoves st chList with
-                        | (x, y)::xs -> wordToMove y[0] x false ""
+                        | (x, y)::xs -> wordToMove (snd (findLongestWord2 ([(x, y)] @ xs))) (fst (findLongestWord2 ([(x, y)] @ xs))) false ""
                         | [] -> passMove
 
             let firstMove =
                 match firstMoves with
-                | x::_ -> wordToMove x (0,0) false ""
+                | x::xs -> wordToMove (findLongestWord ([x] @ xs)) (0,0) false ""
                 | [] -> passMove
-
 
             let move = if st.isFirstMove then firstMove else otherMove
 
@@ -215,7 +239,7 @@ module Scrabble =
             let input =  System.Console.ReadLine()
 
             debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-            if move = passMove then send cstream SMPass else send cstream (SMPlay move)
+            if move = passMove then send cstream (SMChange (MultiSet.toList st.hand)) else send cstream (SMPlay move)
             
             
             
@@ -251,7 +275,14 @@ module Scrabble =
             | RCM (CMPassed pid) -> 
                 let st' = st
                 aux st'
+            | RCM (CMChangeSuccess newPieces) -> 
+                let removedHand = (MultiSet.toList st.hand) |> List.fold (fun acc x -> MultiSet.removeSingle x acc) st.hand
 
+                let newHand = newPieces |> List.fold (fun acc x -> MultiSet.addSingle (fst x) acc) removedHand
+                
+                let st' = State.mkState st.board st.dict st.playerNumber newHand st.boardTiles false// This state needs to be updated
+                aux st'
+            //| RCM (CMChange _)
             | RCM a -> failwith (sprintf "not implmented: %A" a)
             | RGPE err -> printfn "Gameplay Error:\n%A" err; aux st
 
