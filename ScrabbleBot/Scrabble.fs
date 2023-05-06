@@ -88,6 +88,16 @@ module Scrabble =
     let charToInt (c: char) =
         match c with
         | c -> int c - 64
+        
+    let playableWords (letters: char list) (d: Dict) =
+        let rec aux (letters: char list) (d: Dict) (word: string) (playableWords: string list) (tempOut: char list) =
+            match letters with
+            | x::xs -> match step x d with
+                       | Some (b, d) when b = true -> aux (xs @ tempOut) d (word + x.ToString())  (playableWords |> List.append [word + x.ToString()]) []
+                       | Some (_, d) -> aux (xs @ tempOut) d (word + x.ToString()) playableWords []
+                       | None -> aux xs d word playableWords (tempOut @ [x])
+            | [] -> playableWords
+        aux letters d "" [] []
      
     let playableWord (letters: char list) (d: Dict) =
         let rec aux (letters: char list) (d: Dict) (word: string) =
@@ -157,19 +167,24 @@ module Scrabble =
             //     | false -> 
             
             
-            let move = playableWord chList st.dict
-            // debugPrint $"Move: {move}\n\n"
-            let firstMove = wordToMove move (0,0) false ""
-            // debugPrint $"First move: {firstMove}\n\n"
+            let moves = playableWords chList st.dict
+            debugPrint $"Moves: {moves}\n\n"
             
-            let input =  System.Console.ReadLine()
+            
+            
             // let move = RegEx.parseMove input
-            let move = firstMove
+            // let firstMove = wordToMove moves[0] (0,0) false ""
+            // debugPrint $"First move: {firstMove}\n\n"
+            let move =
+                match moves with
+                | x::_ -> wordToMove x (0,0) false ""
+                | [] -> [((0, 0), (0u, (' ', 0)))]
 
-            debugPrint $"MOVE: {move}"
+            debugPrint $"Next move: {move} \n\n"
+            let input =  System.Console.ReadLine()
 
             debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-            send cstream (SMPlay move)
+            if List.isEmpty moves then send cstream SMPass else send cstream (SMPlay move)
 
             let msg = recv cstream
             debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
@@ -203,6 +218,7 @@ module Scrabble =
 
         aux st
 
+    
     let startGame
             (boardP : boardProg)
             (dictf : bool -> Dictionary.Dict)
