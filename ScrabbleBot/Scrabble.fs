@@ -113,7 +113,16 @@ module Scrabble =
             
         letters |> List.fold (fun acc x -> acc @ (aux ([x] @ (List.except [x] letters)) d word [] [])) []
 
-    
+    // let playableWords2 (letters: char list) (d: Dict) (word: string) =
+    //     let rec aux (letters: char list) (d: Dict) (word: string) (playableWords: string list) (tempOut: char list) =
+    //         match letters with
+    //         | x::xs -> match reverse d with
+    //                    | Some (b, d) when b = true -> aux (xs @ tempOut) d (word + x.ToString())  (playableWords |> List.append [word + x.ToString()]) []
+    //                    | Some (_, d) -> aux (xs @ tempOut) d (word + x.ToString()) playableWords []
+    //                    | None -> aux xs d word playableWords (tempOut @ [x])
+    //         | [] -> playableWords
+            
+    //     letters |> List.fold (fun acc x -> acc @ (aux ([x] @ (List.except [x] letters)) d word [] [])) []
 
     let playableWordsWithPrefix (prefixChar: char) (letters: char list) (d: Dict) =
         match step prefixChar d with
@@ -141,10 +150,12 @@ module Scrabble =
          | s when s <> "" -> wordToFirstMove s[1..] (fst coord, (snd coord + 1)) $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
          | "" -> RegEx.parseMove output
 
-    let rec wordToMove (word: string) (coord : int * int) (isVertical: bool) output =
+    let rec wordToMove (word: string) (coord : int * int) (isVertical: bool) (isOpposite: bool) output =
         match word with
-        | s when s <> "" && isVertical -> wordToMove s[1..] (fst coord, (snd coord + 1)) true  $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
-        | s when s <> "" -> wordToMove s[1..] (fst coord + 1, (snd coord)) false  $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
+        | s when s <> "" && isVertical && isOpposite -> wordToMove s[1..] (fst coord, (snd coord - 1)) true true  $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
+        | s when s <> "" && isOpposite-> wordToMove s[1..] (fst coord - 1, (snd coord)) false true  $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
+        | s when s <> "" && isVertical -> wordToMove s[1..] (fst coord, (snd coord + 1)) true false  $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
+        | s when s <> "" -> wordToMove s[1..] (fst coord + 1, (snd coord)) false false  $"{output} {fst coord} {snd coord} {charToInt s[0]}{s[0]}{charNumberToPoints (charToInt s[0])}"
         | "" -> RegEx.parseMove output
 
     let checkRight (st: State.state) =
@@ -167,6 +178,26 @@ module Scrabble =
             st.boardTiles.ContainsKey (fst x + 1, (snd x + 2)) ||
             st.boardTiles.ContainsKey (fst x - 1, (snd x + 2))))
 
+    let checkLeft (st: State.state) =
+        st.boardTiles |> Map.filter (fun x _ -> 
+            not ((st.boardTiles.ContainsKey (fst x - 1, (snd x)) ||
+            st.boardTiles.ContainsKey (fst x - 1, (snd x + 1)) ||
+            st.boardTiles.ContainsKey (fst x - 1, (snd x - 1))) || 
+            st.boardTiles.ContainsKey (fst x + 1, (snd x)) ||
+            st.boardTiles.ContainsKey (fst x - 2, (snd x)) ||
+            st.boardTiles.ContainsKey (fst x - 2, (snd x + 1)) ||
+            st.boardTiles.ContainsKey (fst x - 2, (snd x - 1))))
+
+    let checkUp (st: State.state) = 
+        st.boardTiles |> Map.filter (fun x _ ->
+        not(st.boardTiles.ContainsKey (fst x, (snd x + 1)) ||
+            st.boardTiles.ContainsKey (fst x - 1, (snd x - 1)) ||
+            st.boardTiles.ContainsKey (fst x + 1, (snd x - 1)) ||
+            st.boardTiles.ContainsKey (fst x, (snd x - 1)) ||
+            st.boardTiles.ContainsKey (fst x, (snd x - 2)) ||
+            st.boardTiles.ContainsKey (fst x + 1, (snd x - 2)) ||
+            st.boardTiles.ContainsKey (fst x - 1, (snd x - 2))))
+
     let rec checkDownWithPrefix (st: State.state) = 
         st.boardTiles |> Map.filter (fun x _ ->
         (st.boardTiles.ContainsKey (fst x, (snd x + 1)) ||
@@ -183,6 +214,18 @@ module Scrabble =
     let findRightMoves (st: State.state) (letters: char list) =
         (checkRight st)
         |> Map.fold (fun acc k v -> acc @ [((fst k + 1, snd k) ,playableWordsWithPrefix v letters st.dict)]) []
+        |> List.fold (fun acc (c, x) -> acc @ [(c ,x |> List.fold (fun acc x -> acc @ [x[1..]]) [])]) []
+        |> List.filter (fun (_, x) -> not (List.isEmpty x))
+
+    let findUpMoves (st: State.state) (letters: char list) =
+        (checkUp st)
+        |> Map.fold (fun acc k v -> acc @ [((fst k, snd k - 1) ,playableWordsWithPrefix v letters st.dict)]) []
+        |> List.fold (fun acc (c, x) -> acc @ [(c ,x |> List.fold (fun acc x -> acc @ [x[1..]]) [])]) []
+        |> List.filter (fun (_, x) -> not (List.isEmpty x))
+        
+    let findLeftMoves (st: State.state) (letters: char list) =
+        (checkLeft st)
+        |> Map.fold (fun acc k v -> acc @ [((fst k - 1, snd k) ,playableWordsWithPrefix v letters st.dict)]) []
         |> List.fold (fun acc (c, x) -> acc @ [(c ,x |> List.fold (fun acc x -> acc @ [x[1..]]) [])]) []
         |> List.filter (fun (_, x) -> not (List.isEmpty x))
 
@@ -222,8 +265,10 @@ module Scrabble =
             let firstMoves = playableWords chList st.dict ""
             debugPrint $"Moves: {firstMoves}\n\n"
             
-            debugPrint $"findDownMoves: {findDownMovesWithPrefix st chList} \n\n"
+            debugPrint $"findDownMoves: {findDownMoves st chList} \n\n"
             debugPrint $"findRightMoves: {findRightMoves st chList} \n\n"
+            debugPrint $"findUpMoves: {findUpMoves st chList} \n\n"
+            debugPrint $"findLeftMoves: {findLeftMoves st chList} \n\n"
             
             // let move = RegEx.parseMove input
             // let firstMove = wordToMove moves[0] (0,0) false ""
@@ -246,19 +291,23 @@ module Scrabble =
             
             let otherMove = 
                 match findDownMoves st chList with
-                | (x, y)::xs -> wordToMove (snd (findLongestWord2 ([(x, y)] @ xs))) (fst (findLongestWord2 ([(x, y)] @ xs))) true ""
+                | (x, y)::xs -> wordToMove (snd (findLongestWord2 ([(x, y)] @ xs))) (fst (findLongestWord2 ([(x, y)] @ xs))) true false ""
                 | [] -> match findRightMoves st chList with
-                        | (x, y)::xs -> wordToMove (snd (findLongestWord2 ([(x, y)] @ xs))) (fst (findLongestWord2 ([(x, y)] @ xs))) false ""
-                        | [] -> passMove
+                        | (x, y)::xs -> wordToMove (snd (findLongestWord2 ([(x, y)] @ xs))) (fst (findLongestWord2 ([(x, y)] @ xs))) false false ""
+                        | [] -> match findUpMoves st chList with
+                                | (x, y)::xs -> wordToMove (snd (findLongestWord2 ([(x, y)] @ xs))) (fst (findLongestWord2 ([(x, y)] @ xs))) true true ""
+                                | [] -> match findLeftMoves st chList with
+                                        | (x, y)::xs -> wordToMove (snd (findLongestWord2 ([(x, y)] @ xs))) (fst (findLongestWord2 ([(x, y)] @ xs))) false true ""
+                                        | [] -> passMove
 
             let firstMove =
                 match firstMoves with
-                | x::xs -> wordToMove (findLongestWord ([x] @ xs)) (0,0) false ""
+                | x::xs -> wordToMove (findLongestWord ([x] @ xs)) (0,0) false false ""
                 | [] -> passMove
 
             let move = if st.isFirstMove then firstMove else otherMove
 
-            debugPrint $"First move: {firstMove} \n\n"
+            debugPrint $"First move: {firstMoves} \n\n"
             debugPrint $"Other move: {otherMove} \n\n"
             debugPrint $"Next move: {move} \n\n"
             let input =  System.Console.ReadLine()
@@ -333,8 +382,8 @@ module Scrabble =
                       hand =  %A
                       timeout = %A\n\n" numPlayers playerNumber playerTurn hand timeout)
 
-        //let dict = dictf true // Uncomment if using a gaddag for your dictionary
-        let dict = dictf false // Uncomment if using a trie for your dictionary
+        let dict = dictf true // Uncomment if using a gaddag for your dictionary
+        //let dict = dictf false // Uncomment if using a trie for your dictionary
         let board = Parser.mkBoard boardP
 
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
