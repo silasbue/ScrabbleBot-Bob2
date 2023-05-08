@@ -46,24 +46,26 @@ module State =
     // information, such as number of players, player turn, etc.
 
     type state = {
-        board         : Parser.board
-        dict          : ScrabbleUtil.Dictionary.Dict
-        playerNumber  : uint32
-        hand          : MultiSet.MultiSet<uint32>
-        // parsedBoard   : coord -> bool
-        boardTiles    : Map<coord, char>
-        isFirstMove   : bool
+        board            : Parser.board
+        dict             : ScrabbleUtil.Dictionary.Dict
+        playerNumber     : uint32
+        hand             : MultiSet.MultiSet<uint32>
+        // parsedBoard      : coord -> bool
+        boardTiles       : Map<coord, char>
+        isFirstMove      : bool
+        amountOfPieces   : int
     }
 
-    let mkState b d pn h bt fm = {board = b; dict = d;  playerNumber = pn; hand = h; boardTiles = bt;  isFirstMove = fm}
+    let mkState b d pn h bt fm aof = {board = b; dict = d;  playerNumber = pn; hand = h; boardTiles = bt;  isFirstMove = fm; amountOfPieces = aof }
 
-    let board st         = st.board
-    let dict st          = st.dict
-    let playerNumber st  = st.playerNumber
-    let hand st          = st.hand
-    let boardTiles st    = st.boardTiles
-    
-    let isFirstMove st   = st.isFirstMove
+    let board st          = st.board
+    let dict st           = st.dict
+    let playerNumber st   = st.playerNumber
+    let hand st           = st.hand
+    let boardTiles st     = st.boardTiles
+     
+    let isFirstMove st    = st.isFirstMove
+    let amountOfPieces st = st.amountOfPieces
 
 module Scrabble =
     open System.Threading
@@ -101,7 +103,46 @@ module Scrabble =
                    | Some (b, _) when String.length word = 1 = true -> b
                    | Some (_, d) -> isAWord word[1..] d
                    | None -> false
+    
+    let rec canBeAWord (word: string) (d: Dict) =
+        // debugPrint $"checking is a word"
+        match word with
+        | x when x = "" -> false
+        | x -> match step x[0] d with
+                   | Some _ when String.length word = 1 = true -> true
+                   | Some (_, d) -> isAWord word[1..] d
+                   | None -> false
                    
+    let rec canFitVertical (startCoord: (int * int)) (st: State.state) (word: string) =
+        let rec aux (coord: (int * int)) (st: State.state) (word: string) (up: bool) =
+            let nextCoord = if up then (fst coord, snd coord - 1) else (fst coord, snd coord + 1)
+            // debugPrint$"checking vertical"
+            match st.boardTiles |> Map.tryFind nextCoord with
+            | Some c when up -> aux nextCoord st (c.ToString() + word) up
+            | Some c -> aux nextCoord st (word + c.ToString()) up
+            | None when up -> aux startCoord st word false
+            | None when String.length word = 1 -> true
+            | None ->
+                // if isAWord word st.dict then debugPrint $"word fits vertical: {word}\n" else debugPrint $"no fit"
+                // if canBeAWord word st.dict then debugPrint $"canBeAWord ver: {word}\n"
+                canBeAWord word st.dict
+        aux startCoord st word true
+
+    let rec canFitHorizontal (startCoord: (int * int)) (st: State.state) (word: string) =
+        let rec aux (coord: (int * int)) (st: State.state) (word: string) (right: bool) =
+            let nextCoord = if right then (fst coord - 1, snd coord) else (fst coord  + 1, snd coord)
+            // debugPrint$"checking horizontal"
+            match st.boardTiles |> Map.tryFind nextCoord with
+            | Some c when right -> aux nextCoord st (c.ToString() + word) right
+            | Some c -> aux nextCoord st (word + c.ToString()) right
+            | None when right -> aux startCoord st word true
+            | None when String.length word = 1 -> true
+            | None ->
+                // if isAWord word st.dict then debugPrint $"word fits horizontal: {word}\n" else debugPrint $"no fit\n"
+                // if canBeAWord word st.dict then debugPrint $"canBeAWord hor: {word}\n"
+                canBeAWord word st.dict
+        aux startCoord st word false
+
         
     let rec fitsVertical (startCoord: (int * int)) (st: State.state) (word: string) =
         let rec aux (coord: (int * int)) (st: State.state) (word: string) (up: bool) =
@@ -118,13 +159,13 @@ module Scrabble =
         aux startCoord st word true
         
     let rec fitsHorizontal (startCoord: (int * int)) (st: State.state) (word: string) =
-        let rec aux (coord: (int * int)) (st: State.state) (word: string) (right: bool) =
-            let nextCoord = if right then (fst coord - 1, snd coord) else (fst coord  + 1, snd coord)
+        let rec aux (coord: (int * int)) (st: State.state) (word: string) (left: bool) =
+            let nextCoord = if left then (fst coord - 1, snd coord) else (fst coord  + 1, snd coord)
             // debugPrint$"checking horizontal"
             match st.boardTiles |> Map.tryFind nextCoord with
-            | Some c when right -> aux nextCoord st (c.ToString() + word) right
-            | Some c -> aux nextCoord st (word + c.ToString()) right
-            | None when right -> aux startCoord st word false
+            | Some c when left -> aux nextCoord st (c.ToString() + word) left
+            | Some c -> aux nextCoord st (word + c.ToString()) left
+            | None when left -> aux startCoord st word false
             | None when String.length word = 1 -> true
             | None ->
                 // if isAWord word st.dict then debugPrint $"word fits horizontal: {word}\n" else debugPrint $"no fit\n"
@@ -156,10 +197,17 @@ module Scrabble =
                 // debugPrint $"fitsHorizontal: {fitsHorizontal coord st (letters.Head.ToString())}\n"
             
                 let fitCheck =
-                    if isVertical then fitsHorizontal coord st (letters.Head.ToString()) else fitsVertical coord st (letters.Head.ToString())
+                    if isVertical 
+                    then
+                        if isFreeInFront
+                        then fitsHorizontal coord st (letters.Head.ToString())
+                        else fitsHorizontal coord st (letters.Head.ToString()) && fitsVertical coord st (if (st.boardTiles |> Map.containsKey (fst coord, snd coord - 1)) then (letters.Head.ToString()) else word)
+                    else
+                        if isFreeInFront
+                        then fitsVertical coord st (letters.Head.ToString())
+                        else fitsVertical coord st (letters.Head.ToString()) && fitsHorizontal coord st (if (st.boardTiles |> Map.containsKey (fst coord - 1, snd coord)) then (letters.Head.ToString()) else word)
                 
-                
-                if (not isOccupied) && isFreeInFront && fitCheck
+                if (not isOccupied) && fitCheck && isFreeBehind
                 then
                     // debugPrint $"Matching..."
                     match letters with
@@ -172,7 +220,7 @@ module Scrabble =
                     // debugPrint $"CHECK failed: {playableWords}"
                     playableWords
             else playableWords
-        if isFreeBehind then letters |> List.fold (fun acc x -> acc @ (aux ([x] @ (List.except [x] letters)) d word [] [] coord)) [] else []
+        letters |> List.fold (fun acc x -> acc @ (aux ([x] @ (List.except [x] letters)) d word [] [] coord)) []
         
     let playableWords (letters: char list) (d: Dict) (word: string) =
         let rec aux (letters: char list) (d: Dict) (word: string) (playableWords: string list) (tempOut: char list) =
@@ -335,10 +383,11 @@ module Scrabble =
             // debugPrint $"First move: {firstMove} \n\n"
             // debugPrint $"Other move: {otherMove} \n\n"
             debugPrint $"Next move: {move} \n\n"
-            let input =  System.Console.ReadLine()
+            // let input =  System.Console.ReadLine()
 
             debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-            if move = passMove then send cstream (SMChange (MultiSet.toList st.hand)) else send cstream (SMPlay move)
+            debugPrint $"amount of pieces left: {st.amountOfPieces}\n"
+            if move = passMove then  (if st.amountOfPieces >= 14 then send cstream (SMChange (MultiSet.toList st.hand)) else send cstream SMPass) else send cstream (SMPlay move)
             
             
             
@@ -355,11 +404,12 @@ module Scrabble =
                 // hand after removing used pieces
                 let removedHand = ms |> List.fold (fun acc x -> MultiSet.removeSingle (fst (snd x)) acc) st.hand
                 // new hand after adding new pieces
-                let newHand = newPieces |> List.fold (fun acc x -> MultiSet.addSingle (fst x) acc) removedHand
+                let newHand = newPieces |> List.fold (fun acc x -> MultiSet.add (fst x) (snd x) acc) removedHand
+                forcePrint $"newpieces: {newPieces}\n"
                 // board after adding word
                 let newBoardTiles = ms |> List.fold (fun acc x -> Map.add (fst x) (fst (snd (snd x))) acc) st.boardTiles
 
-                let st' = State.mkState st.board st.dict st.playerNumber newHand newBoardTiles false// This state needs to be updated
+                let st' = State.mkState st.board st.dict st.playerNumber newHand newBoardTiles false (st.amountOfPieces - List.length ms)// This state needs to be updated
 
                 aux st'
             | RCM (CMPlayed (pid, ms, points)) ->
@@ -377,9 +427,9 @@ module Scrabble =
             | RCM (CMChangeSuccess newPieces) -> 
                 let removedHand = (MultiSet.toList st.hand) |> List.fold (fun acc x -> MultiSet.removeSingle x acc) st.hand
 
-                let newHand = newPieces |> List.fold (fun acc x -> MultiSet.addSingle (fst x) acc) removedHand
-                
-                let st' = State.mkState st.board st.dict st.playerNumber newHand st.boardTiles false// This state needs to be updated
+                let newHand = newPieces |> List.fold (fun acc x -> MultiSet.add (fst x) (snd x) acc) removedHand
+                forcePrint $"newpieces: {newPieces}\n"
+                let st' = State.mkState st.board st.dict st.playerNumber newHand st.boardTiles false st.amountOfPieces// This state needs to be updated
                 aux st'
             //| RCM (CMChange _)
             | RCM a -> failwith (sprintf "not implmented: %A" a)
@@ -414,5 +464,5 @@ module Scrabble =
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
         let boardTiles = Map.empty
 
-        fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet boardTiles true)
+        fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet boardTiles true 104)
 
