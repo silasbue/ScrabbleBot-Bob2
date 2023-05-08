@@ -1,6 +1,7 @@
 ﻿namespace Bob2
 
 open System.Text.RegularExpressions
+open Microsoft.FSharp.Core
 open ScrabbleLib
 open ScrabbleUtil
 open ScrabbleUtil.Dictionary
@@ -92,6 +93,30 @@ module Scrabble =
         match c with
         | c -> int c - 64
         
+    let playableWordsWithCoords (letters: char list) (d: Dict) (word: string) (coord: (int * int)) (isVertical: bool) (st: State.state) =
+        let isFreeBehind = if isVertical then not (Map.containsKey (fst coord, snd coord - 2) st.boardTiles) else not (Map.containsKey (fst coord - 2, snd coord) st.boardTiles)
+        let rec aux (letters: char list) (d: Dict) (word: string) (playableWords: string list) (tempOut: char list) (coord: int * int) =
+            let isFree = if isVertical
+                         then not (Map.containsKey (fst coord, snd coord) st.boardTiles ||
+                              Map.containsKey (fst coord + 1, snd coord) st.boardTiles ||
+                              Map.containsKey (fst coord - 1, snd coord) st.boardTiles ||
+                              Map.containsKey (fst coord, snd coord + 1) st.boardTiles)
+                         else not (Map.containsKey (fst coord, snd coord) st.boardTiles ||
+                              Map.containsKey (fst coord, snd coord + 1) st.boardTiles ||
+                              Map.containsKey (fst coord, snd coord - 1) st.boardTiles ||
+                              Map.containsKey (fst coord + 1, snd coord) st.boardTiles)
+            if isFree
+            then
+                match letters with
+                | x::xs -> match step x d with
+                           | Some (b, d) when b = true -> aux (xs @ tempOut) d (word + x.ToString()) (playableWords |> List.append [word + x.ToString()]) [] (if isVertical then (fst coord, snd coord + 1) else (fst coord + 1, snd coord))
+                           | Some (_, d) -> aux (xs @ tempOut) d (word + x.ToString()) playableWords [] (if isVertical then (fst coord, snd coord + 1) else (fst coord + 1, snd coord))
+                           | None -> aux xs d word playableWords (tempOut @ [x]) coord
+                | [] -> playableWords
+            else playableWords
+            
+        if isFreeBehind then letters |> List.fold (fun acc x -> acc @ (aux ([x] @ (List.except [x] letters)) d word [] [] coord)) [] else []
+        
     let playableWords (letters: char list) (d: Dict) (word: string) =
         let rec aux (letters: char list) (d: Dict) (word: string) (playableWords: string list) (tempOut: char list) =
             match letters with
@@ -109,6 +134,11 @@ module Scrabble =
         match step prefixChar d with
         | Some (_, d) -> playableWords letters d (prefixChar.ToString())
         | None -> failwith "None"
+        
+    let quickStep s d =
+        match step s d with
+        | Some (_, d) -> d
+        | None -> d
      
     let playableWord (letters: char list) (d: Dict) =
         let rec aux (letters: char list) (d: Dict) (word: string) =
@@ -168,6 +198,17 @@ module Scrabble =
         |> Map.fold (fun acc k v -> acc @ [((fst k + 1, snd k) ,playableWordsWithPrefix v letters st.dict)]) []
         |> List.fold (fun acc (c, x) -> acc @ [(c ,x |> List.fold (fun acc x -> acc @ [x[1..]]) [])]) []
         |> List.filter (fun (_, x) -> not (List.isEmpty x))
+    
+    let findDownMovesCoords (st: State.state) (letters: char list) =
+        st.boardTiles
+        |> Map.fold (fun acc k v -> acc @ [((fst k, snd k + 1) ,playableWordsWithCoords letters (quickStep v st.dict) (v.ToString()) (fst k, snd k + 1) true st)]) []
+        |> List.fold (fun acc (c, x) -> acc @ [(c ,x |> List.fold (fun acc x -> acc @ [x[1..]]) [])]) []
+        |> List.filter (fun (_, x) -> not (List.isEmpty x))
+    let findRightMovesCoords (st: State.state) (letters: char list) =
+        (checkRight st)
+        |> Map.fold (fun acc k v -> acc @ [((fst k + 1, snd k) ,playableWordsWithCoords letters (quickStep v st.dict) (v.ToString()) (fst k + 1, snd k) false st)]) []
+        |> List.fold (fun acc (c, x) -> acc @ [(c ,x |> List.fold (fun acc x -> acc @ [x[1..]]) [])]) []
+        |> List.filter (fun (_, x) -> not (List.isEmpty x))
 
     let playGame cstream pieces (st : State.state) =
         let rec aux (st : State.state) =
@@ -197,8 +238,8 @@ module Scrabble =
             let firstMoves = playableWords chList st.dict ""
             debugPrint $"Moves: {firstMoves}\n\n"
             
-            debugPrint $"findDownMoves: {findDownMoves st chList} \n\n"
-            debugPrint $"findRightMoves: {findRightMoves st chList} \n\n"
+            debugPrint $"findDownMoves: {findDownMovesCoords st chList} \n\n"
+            debugPrint $"findRightMoves: {findRightMovesCoords st chList} \n\n"
             
             // let move = RegEx.parseMove input
             // let firstMove = wordToMove moves[0] (0,0) false ""
@@ -220,11 +261,12 @@ module Scrabble =
                 aux lst ((0,0), "")
             
             let otherMove = 
-                match findDownMoves st chList with
+                match findDownMovesCoords st chList with
                 | (x, y)::xs -> wordToMove (snd (findLongestWord2 ([(x, y)] @ xs))) (fst (findLongestWord2 ([(x, y)] @ xs))) true ""
-                | [] -> match findRightMoves st chList with
+                | [] -> match findRightMovesCoords st chList with
                         | (x, y)::xs -> wordToMove (snd (findLongestWord2 ([(x, y)] @ xs))) (fst (findLongestWord2 ([(x, y)] @ xs))) false ""
                         | [] -> passMove
+            debugPrint $"otherMove: {otherMove}\n"
 
             let firstMove =
                 match firstMoves with
