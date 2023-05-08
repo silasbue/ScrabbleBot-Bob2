@@ -92,10 +92,49 @@ module Scrabble =
     let charToInt (c: char) =
         match c with
         | c -> int c - 64
+    
+    let rec isAWord (word: string) (d: Dict) =
+        // debugPrint $"checking is a word"
+        match word with
+        | x when x = "" -> false
+        | x -> match step x[0] d with
+                   | Some (b, _) when String.length word = 1 = true -> b
+                   | Some (_, d) -> isAWord word[1..] d
+                   | None -> false
+                   
+        
+    let rec fitsVertical (startCoord: (int * int)) (st: State.state) (word: string) =
+        let rec aux (coord: (int * int)) (st: State.state) (word: string) (up: bool) =
+            let nextCoord = if up then (fst coord, snd coord - 1) else (fst coord, snd coord + 1)
+            // debugPrint$"checking vertical"
+            match st.boardTiles |> Map.tryFind nextCoord with
+            | Some c when up -> aux nextCoord st (c.ToString() + word) up
+            | Some c -> aux nextCoord st (word + c.ToString()) up
+            | None when up -> aux startCoord st word false
+            | None when String.length word = 1 -> true
+            | None ->
+                // if isAWord word st.dict then debugPrint $"word fits vertical: {word}\n" else debugPrint $"no fit"
+                isAWord word st.dict
+        aux startCoord st word true
+        
+    let rec fitsHorizontal (startCoord: (int * int)) (st: State.state) (word: string) =
+        let rec aux (coord: (int * int)) (st: State.state) (word: string) (right: bool) =
+            let nextCoord = if right then (fst coord - 1, snd coord) else (fst coord  + 1, snd coord)
+            // debugPrint$"checking horizontal"
+            match st.boardTiles |> Map.tryFind nextCoord with
+            | Some c when right -> aux nextCoord st (c.ToString() + word) right
+            | Some c -> aux nextCoord st (word + c.ToString()) right
+            | None when right -> aux startCoord st word false
+            | None when String.length word = 1 -> true
+            | None ->
+                // if isAWord word st.dict then debugPrint $"word fits horizontal: {word}\n" else debugPrint $"no fit\n"
+                isAWord word st.dict
+        aux startCoord st word true
         
     let playableWordsWithCoords (letters: char list) (d: Dict) (word: string) (coord: (int * int)) (isVertical: bool) (st: State.state) =
         let isFreeBehind = if isVertical then not (Map.containsKey (fst coord, snd coord - 2) st.boardTiles) else not (Map.containsKey (fst coord - 2, snd coord) st.boardTiles)
         let rec aux (letters: char list) (d: Dict) (word: string) (playableWords: string list) (tempOut: char list) (coord: int * int) =
+            let isOccupied = Map.containsKey (fst coord, snd coord) st.boardTiles
             let isFree = if isVertical
                          then not (Map.containsKey (fst coord, snd coord) st.boardTiles ||
                               Map.containsKey (fst coord + 1, snd coord) st.boardTiles ||
@@ -105,16 +144,34 @@ module Scrabble =
                               Map.containsKey (fst coord, snd coord + 1) st.boardTiles ||
                               Map.containsKey (fst coord, snd coord - 1) st.boardTiles ||
                               Map.containsKey (fst coord + 1, snd coord) st.boardTiles)
-            if isFree
-            then
-                match letters with
-                | x::xs -> match step x d with
-                           | Some (b, d) when b = true -> aux (xs @ tempOut) d (word + x.ToString()) (playableWords |> List.append [word + x.ToString()]) [] (if isVertical then (fst coord, snd coord + 1) else (fst coord + 1, snd coord))
-                           | Some (_, d) -> aux (xs @ tempOut) d (word + x.ToString()) playableWords [] (if isVertical then (fst coord, snd coord + 1) else (fst coord + 1, snd coord))
-                           | None -> aux xs d word playableWords (tempOut @ [x]) coord
-                | [] -> playableWords
-            else playableWords
+            let isFreeInFront = if isVertical
+                                then not (Map.containsKey (fst coord, snd coord + 1) st.boardTiles)
+                                else not (Map.containsKey (fst coord + 1, snd coord) st.boardTiles)
             
+            if not (List.isEmpty letters)
+            then 
+                // debugPrint $"isFree: {isFree}\n"
+                // debugPrint $"loading... {letters.Head.ToString()}, {coord}"
+                // debugPrint $"fitsVertical: {fitsVertical coord st (letters.Head.ToString())}\n"
+                // debugPrint $"fitsHorizontal: {fitsHorizontal coord st (letters.Head.ToString())}\n"
+            
+                let fitCheck =
+                    if isVertical then fitsHorizontal coord st (letters.Head.ToString()) else fitsVertical coord st (letters.Head.ToString())
+                
+                
+                if (not isOccupied) && isFreeInFront && fitCheck
+                then
+                    // debugPrint $"Matching..."
+                    match letters with
+                    | x::xs -> match step x d with
+                               | Some (b, d) when b = true -> aux (xs @ tempOut) d (word + x.ToString()) (playableWords |> List.append [word + x.ToString()]) [] (if isVertical then (fst coord, snd coord + 1) else (fst coord + 1, snd coord))
+                               | Some (_, d) -> aux (xs @ tempOut) d (word + x.ToString()) playableWords [] (if isVertical then (fst coord, snd coord + 1) else (fst coord + 1, snd coord))
+                               | None -> aux xs d word playableWords (tempOut @ [x]) coord
+                    | [] -> playableWords
+                else
+                    // debugPrint $"CHECK failed: {playableWords}"
+                    playableWords
+            else playableWords
         if isFreeBehind then letters |> List.fold (fun acc x -> acc @ (aux ([x] @ (List.except [x] letters)) d word [] [] coord)) [] else []
         
     let playableWords (letters: char list) (d: Dict) (word: string) =
@@ -215,17 +272,17 @@ module Scrabble =
             Print.printHand pieces (State.hand st)
 
             // remove the force print when you move on from manual input (or when you have learnt the format)
-            forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
-            debugPrint $"current state: {st}\n\n"
-            debugPrint $"squares: {st.board.squares}\n\n"
-            debugPrint $"hand multiset: {st.hand}\n\n"
+            // forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
+            // debugPrint $"current state: {st}\n\n"
+            // debugPrint $"squares: {st.board.squares}\n\n"
+            // debugPrint $"hand multiset: {st.hand}\n\n"
             
             let chList = MultiSet.toList st.hand |> List.fold (fun acc x -> acc @ [uintToChar x]) []
             
-            debugPrint $"chList: {chList}\n\n"
+            // debugPrint $"chList: {chList}\n\n"
             let check2 = checkRight st
             let check3 = checkDown st
-            debugPrint $"check: {check2}\n\n {check3}\n\n"
+            // debugPrint $"check: {check2}\n\n {check3}\n\n"
 
             // TODO IMPLEMENT MOVE
             // let move =
@@ -236,7 +293,7 @@ module Scrabble =
             let passMove = [((0, 0), (0u, (' ', 0)))]
             
             let firstMoves = playableWords chList st.dict ""
-            debugPrint $"Moves: {firstMoves}\n\n"
+            // debugPrint $"Moves: {firstMoves}\n\n"
             
             debugPrint $"findDownMoves: {findDownMovesCoords st chList} \n\n"
             debugPrint $"findRightMoves: {findRightMovesCoords st chList} \n\n"
@@ -266,7 +323,7 @@ module Scrabble =
                 | [] -> match findRightMovesCoords st chList with
                         | (x, y)::xs -> wordToMove (snd (findLongestWord2 ([(x, y)] @ xs))) (fst (findLongestWord2 ([(x, y)] @ xs))) false ""
                         | [] -> passMove
-            debugPrint $"otherMove: {otherMove}\n"
+            // debugPrint $"otherMove: {otherMove}\n"
 
             let firstMove =
                 match firstMoves with
@@ -275,8 +332,8 @@ module Scrabble =
 
             let move = if st.isFirstMove then firstMove else otherMove
 
-            debugPrint $"First move: {firstMove} \n\n"
-            debugPrint $"Other move: {otherMove} \n\n"
+            // debugPrint $"First move: {firstMove} \n\n"
+            // debugPrint $"Other move: {otherMove} \n\n"
             debugPrint $"Next move: {move} \n\n"
             let input =  System.Console.ReadLine()
 
