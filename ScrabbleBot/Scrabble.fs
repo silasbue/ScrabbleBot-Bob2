@@ -49,14 +49,16 @@ module State =
         board            : Parser.board
         dict             : ScrabbleUtil.Dictionary.Dict
         playerNumber     : uint32
+        playerTurn       : uint32
         hand             : MultiSet.MultiSet<uint32>
         // parsedBoard      : coord -> bool
         boardTiles       : Map<coord, char>
         isFirstMove      : bool
         amountOfPieces   : int
+        numberOfPlayers  : uint32
     }
 
-    let mkState b d pn h bt fm aof = {board = b; dict = d;  playerNumber = pn; hand = h; boardTiles = bt;  isFirstMove = fm; amountOfPieces = aof }
+    let mkState b d pn h bt fm aof nop pt = {board = b; dict = d;  playerNumber = pn; hand = h; boardTiles = bt;  isFirstMove = fm; amountOfPieces = aof; numberOfPlayers = nop; playerTurn = pt }
 
     let board st          = st.board
     let dict st           = st.dict
@@ -66,6 +68,8 @@ module State =
      
     let isFirstMove st    = st.isFirstMove
     let amountOfPieces st = st.amountOfPieces
+    let numberOfPlayer st = st.numberOfPlayers
+    let playerTurn st = st.playerTurn
 
 module Scrabble =
     open System.Threading
@@ -317,7 +321,7 @@ module Scrabble =
 
     let playGame cstream pieces (st : State.state) =
         let rec aux (st : State.state) =
-            Print.printHand pieces (State.hand st)
+            // Print.printHand pieces (State.hand st)
 
             // remove the force print when you move on from manual input (or when you have learnt the format)
             // forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
@@ -387,8 +391,11 @@ module Scrabble =
 
             debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
             debugPrint $"amount of pieces left: {st.amountOfPieces}\n"
-            if move = passMove then  (if st.amountOfPieces >= 14 then send cstream (SMChange (MultiSet.toList st.hand)) else send cstream SMPass) else send cstream (SMPlay move)
             
+            if st.playerNumber = st.playerTurn
+            then
+                if move = passMove then  (if st.amountOfPieces >= (14 * (int st.numberOfPlayers)) then send cstream (SMChange (MultiSet.toList st.hand)) else send cstream SMPass) else send cstream (SMPlay move)
+                
             
             
             //if st.isFirstMove then (if List.isEmpty firstMove then cstream SMPass send cstream (SMPlay move) else cstream SMPass send cstream (SMPlay move))
@@ -405,36 +412,45 @@ module Scrabble =
                 let removedHand = ms |> List.fold (fun acc x -> MultiSet.removeSingle (fst (snd x)) acc) st.hand
                 // new hand after adding new pieces
                 let newHand = newPieces |> List.fold (fun acc x -> MultiSet.add (fst x) (snd x) acc) removedHand
-                forcePrint $"newpieces: {newPieces}\n"
+                // forcePrint $"newpieces: {newPieces}\n"
                 // board after adding word
                 let newBoardTiles = ms |> List.fold (fun acc x -> Map.add (fst x) (fst (snd (snd x))) acc) st.boardTiles
-
-                let st' = State.mkState st.board st.dict st.playerNumber newHand newBoardTiles false (st.amountOfPieces - List.length ms)// This state needs to be updated
+                
+                let newPt = ((st.playerTurn) % st.numberOfPlayers) + 1u
+                
+                let st' = State.mkState st.board st.dict st.playerNumber newHand newBoardTiles false (st.amountOfPieces - List.length ms) st.numberOfPlayers newPt// This state needs to be updated
 
                 aux st'
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
-                let st' = st // This state needs to be updated
+                let newBoardTiles = ms |> List.fold (fun acc x -> Map.add (fst x) (fst (snd (snd x))) acc) st.boardTiles
+                let newPt = ((st.playerTurn) % st.numberOfPlayers) + 1u
+                let st' = State.mkState st.board st.dict st.playerNumber st.hand newBoardTiles false (st.amountOfPieces - List.length ms) st.numberOfPlayers newPt
                 aux st'
             | RCM (CMPlayFailed (pid, ms)) ->
-                (* Failed play. Update your state *)
-                let st' = st // This state needs to be updated
+                let newPt = ((st.playerTurn) % st.numberOfPlayers) + 1u
+                let st' = State.mkState st.board st.dict st.playerNumber st.hand st.boardTiles false st.amountOfPieces st.numberOfPlayers newPt
                 aux st'
             | RCM (CMGameOver _) -> ()
-            | RCM (CMPassed pid) -> 
-                let st' = st
+            | RCM (CMPassed pid) ->
+                let newPt = ((st.playerTurn) % st.numberOfPlayers) + 1u
+                let st' = State.mkState st.board st.dict st.playerNumber st.hand st.boardTiles false st.amountOfPieces st.numberOfPlayers newPt
                 aux st'
             | RCM (CMChangeSuccess newPieces) -> 
                 let removedHand = (MultiSet.toList st.hand) |> List.fold (fun acc x -> MultiSet.removeSingle x acc) st.hand
 
                 let newHand = newPieces |> List.fold (fun acc x -> MultiSet.add (fst x) (snd x) acc) removedHand
-                forcePrint $"newpieces: {newPieces}\n"
-                let st' = State.mkState st.board st.dict st.playerNumber newHand st.boardTiles false st.amountOfPieces// This state needs to be updated
+                // forcePrint $"newpieces: {newPieces}\n"
+                let newPt = ((st.playerTurn) % st.numberOfPlayers) + 1u
+                let st' = State.mkState st.board st.dict st.playerNumber newHand st.boardTiles false st.amountOfPieces st.numberOfPlayers newPt// This state needs to be updated
                 aux st'
-            //| RCM (CMChange _)
+            | RCM (CMChange _) ->
+                let newPt = ((st.playerTurn) % st.numberOfPlayers) + 1u
+                let st' = State.mkState st.board st.dict st.playerNumber st.hand st.boardTiles false st.amountOfPieces st.numberOfPlayers newPt// This state needs to be updated
+                aux st'
+                
             | RCM a -> failwith (sprintf "not implmented: %A" a)
             | RGPE err -> printfn "Gameplay Error:\n%A" err; aux st
-
 
         aux st
 
@@ -464,5 +480,5 @@ module Scrabble =
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
         let boardTiles = Map.empty
 
-        fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet boardTiles true 104)
+        fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet boardTiles true 104 numPlayers playerTurn)
 
